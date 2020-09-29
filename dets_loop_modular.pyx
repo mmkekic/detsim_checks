@@ -52,6 +52,7 @@ def electron_loop(np.ndarray[double, ndim=1] xs,
                   double sipm_time_bin,
                   int num_bins):
 
+    #part of the init class
     cdef:
         double [:, :] psf_values               
         double [:] xsipms, ysipms, z_bins, sipm_values, xgrid, ygrid
@@ -95,8 +96,8 @@ def electron_loop(np.ndarray[double, ndim=1] xs,
             nearby_list_[i,j, :len(closest_sipms)]=closest_sipms
     cdef int [:, :, :] nearby_list = nearby_list_
 
+    #part of new detsim loop
     cdef:
-
         int nsipms = len(xsipms)
         int [:] sipm_ids = np.empty_like(nearby_list_[0,0])
         double [:] zs = z_bins
@@ -110,7 +111,6 @@ def electron_loop(np.ndarray[double, ndim=1] xs,
         double [:] EL_times_
         int sipm_id
         double x_el, y_el, ph_el, time_el
-    #lets create vector of EL_times
     num_zs = np.copy(zs)
     zs_bs = num_zs[1]-num_zs[0]
     EL_times = (num_zs+zs_bs/2.)/EL_drift_velocity
@@ -119,10 +119,7 @@ def electron_loop(np.ndarray[double, ndim=1] xs,
     cdef double[:] psf_factors_ = np.zeros_like(EL_times_)
     cdef double[:] psf_factors = np.zeros_like(EL_times_)
     cdef int[:] indxs_time = np.zeros_like(EL_times_, dtype=np.intc)
-    #cdef int num_0s = 0
-    #cdef int tmp_res
     #with nogil:
-    #sipm_ids = np.arange(nsipms, dtype=np.intc)
     for indx_el in range(ts.shape[0]):
         x_el = xs[indx_el]
         y_el = ys[indx_el]
@@ -147,5 +144,4 @@ def electron_loop(np.ndarray[double, ndim=1] xs,
                     
             else:
                 break
-    #print (num_0s)
     return sipmwfs

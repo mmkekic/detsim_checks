@@ -66,17 +66,8 @@ cdef class PSF_distance(PSF):
         full_list = (-1)*np.ones((len(self.xgrid), len(self.ygrid), max_num), dtype=np.intc)
         for i in range(len(self.xgrid)):
             for j in range(len(self.ygrid)):
-                msk1 = np.sqrt((np.asarray(self.xsipms)-np.asarray(self.xgrid[i]))**2 + (np.asarray(self.ysipms)-np.asarray(self.ygrid[j]))**2)<self.max_psf+self.sipm_pitch
+                msk1 = np.sqrt((np.asarray(self.xsipms)-np.asarray(self.xgrid[i]))**2 + (np.asarray(self.ysipms)-np.asarray(self.ygrid[j]))**2)<self.max_psf+1.5*self.sipm_pitch 
                 closest_sipms = np.argwhere(msk1).squeeze()
-                
-                # if len(closest_sipms)>max_num:
-                #     set_trace()
-                # print ('***********')
-                # print(np.asarray(self.xsipms)[msk1], self.xgrid[i])
-                # print(np.asarray(self.ysipms)[msk2], self.ygrid[j])
-                
-                # print (closest_sipms, max_num)
-                
                 full_list[i,j, :len(closest_sipms)]=closest_sipms.flatten()
         return full_list
 
