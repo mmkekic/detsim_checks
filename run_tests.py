@@ -11,7 +11,7 @@ from IPython.core.debugger import set_trace
 import invisible_cities.database.load_db as db
 datasipm = db.DataSiPM('next100', 0)
 
-filename = 'NEXT100.tracking.S2.SiPM.LightTable.h5'
+filename = './Lighttables/NEXT100.tracking.S2.SiPM.LightTable.h5'
 drift_velocity_EL = 2.5 * units.mm/units.mus
 wf_sipm_bin_width = 1 * units.mus
 wf_buffer_length  = 2000  * units.mus
@@ -51,7 +51,7 @@ def create_sipm_waveforms_cython(wf_buffer_length  : float,
     return create_sipm_waveforms_
 
 @profile
-def cython_class(times, nphotons, dx, dy):
+def cython_setup_class(times, nphotons, dx, dy):
     psf_cl = PSF_distance_(datasipm, filename)
     drift_velocity_EL = 2.5 * units.mm/units.mus
     nlen = wf_buffer_length//wf_sipm_bin_width
@@ -87,9 +87,9 @@ dy = ysipms.min()+np.random.sample(n_els)*(xsipms.max()-ysipms.min())
 t0 = time.time()
 sipm_org = np.asarray(cython_setup_org(times, nphotons, dx, dy))
 torg = time.time()
-sipm_mod = np.asarray(cython_setup_complic(times, nphotons, dx, dy))
+sipm_mod = np.asarray(cython_setup_modular(times, nphotons, dx, dy))
 tmod = time.time()
-sipm_fin = np.asarray(final_cython_class(times, nphotons, dx, dy))
+sipm_fin = np.asarray(cython_setup_class(times, nphotons, dx, dy))
 tfin = time.time()
 print(np.all(sipm_org==sipm_mod))
 print(np.all(sipm_org==sipm_fin))

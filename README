@@ -1,0 +1,10 @@
+to download data from 
+https://www.dropbox.com/sh/7qg8io1j05hsd8y/AAAGwALES-KOhjlu70KJviSPa?dl=0
+
+to build (in place different cython implementation) run
+python setup.py build_ext --inplace
+
+there is run_tests that runs different implementation and checks the times
+
+you can also run full detsim by
+run_detsim.py
