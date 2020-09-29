@@ -24,7 +24,7 @@ nsipms = len(datasipm)
 from detsim_loop import electron_loop 
 from psf_functions import PSF_distance as PSF_distance_
 
-from invisible_cities.detsim.psf_functions import PSF_distance as PSF_distance
+
 
 from detsim_loop_original import electron_loop as el_loop_org
 from detsim_loop_modular import electron_loop as el_loop_mod
