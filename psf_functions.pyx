@@ -11,13 +11,13 @@ from IPython.core.debugger import set_trace
 
 #base class for PSF
 cdef class PSF:
-    cdef double [:] get_values(self, double x, double y, int sipm_id) nogil:
+    cdef int get_values(self, const double x, const double y, const int sipm_id, double[:] psf_values) nogil:
         pass
     cpdef double[:] get_z_bins(self):
         pass
     def get_sipm_ids(self):
         pass
-    cdef int[:] get_list_of_sipms(self, double x, double y) nogil:
+    cdef int[:] get_list_of_sipms(self, const double x, const double y) nogil:
         pass
 
 cdef class PSF_distance(PSF):
@@ -27,6 +27,7 @@ cdef class PSF_distance(PSF):
         int [:] sipm_ids, z_bins_indcs
         double psf_bin, dz_bin, max_zel, max_psf, EL_z, minx, miny, sipm_pitch
         int [:, :, :] nearby_list
+        double inv_bin,  inv_pitch, max_psf_sq
 
 
 
@@ -44,6 +45,7 @@ cdef class PSF_distance(PSF):
         self.sipm_values = np.zeros(len(self.z_bins), dtype=np.double)
         self.psf_values = PSF.values/len(self.z_bins)
         self.psf_bin    = float(PSF.index[1]-PSF.index[0])
+        self.inv_bin = 1./self.psf_bin
         self.dz_bin = el_pitch
 
         self.xsipms = sipm_database.X.values.astype(np.double)
@@ -51,6 +53,7 @@ cdef class PSF_distance(PSF):
         self.sipm_ids = sipm_database.index.values.astype(np.intc)
         self.max_zel = EL_z
         self.max_psf = max(PSF.index.values)
+        self.max_psf_sq = self.max_psf*self.max_psf
         cdef size_t dummy_indx
         self.xgrid = np.sort(np.unique(self.xsipms))
         self.ygrid = np.sort(np.unique(self.xsipms))
@@ -58,7 +61,7 @@ cdef class PSF_distance(PSF):
         self.miny = min(self.ygrid)
         
         self.sipm_pitch = 15.5
-
+        self.inv_pitch = 1./self.sipm_pitch
         self.nearby_list = self.__get_binned_matrix__()
 
     def __get_binned_matrix__(self):
@@ -66,8 +69,8 @@ cdef class PSF_distance(PSF):
         full_list = (-1)*np.ones((len(self.xgrid), len(self.ygrid), max_num), dtype=np.intc)
         for i in range(len(self.xgrid)):
             for j in range(len(self.ygrid)):
-                msk1 = np.sqrt((np.asarray(self.xsipms)-np.asarray(self.xgrid[i]))**2 + (np.asarray(self.ysipms)-np.asarray(self.ygrid[j]))**2)<self.max_psf+1.5*self.sipm_pitch 
-                closest_sipms = np.argwhere(msk1).squeeze()
+                msk1 = np.sqrt((np.asarray(self.xsipms)-np.asarray(self.xgrid[i]))**2 + (np.asarray(self.ysipms)-np.asarray(self.ygrid[j]))**2)<=self.max_psf+1.5*self.sipm_pitch
+                closest_sipms = np.argwhere(msk1).ravel()
                 full_list[i,j, :len(closest_sipms)]=closest_sipms.flatten()
         return full_list
 
@@ -75,11 +78,15 @@ cdef class PSF_distance(PSF):
     @cython.wraparound(False)
     @cython.cdivision(True)
     @cython.initializedcheck(False)
-    cdef int[:] get_list_of_sipms(self, double x, double y) nogil:
-        cdef int indx_xi, indx_yi
+    cdef int[:] get_list_of_sipms(self, const double x, const double y) nogil:
+        cdef:
+            unsigned int indx_xi, indx_yi
+            double inter_x, inter_y
+        inter_x = (x-self.minx)*self.inv_pitch
+        inter_y = (y-self.miny)*self.inv_pitch
         #still not out-of-range safe
-        indx_xi = <int> floor((x-self.minx)/self.sipm_pitch)
-        indx_yi = <int> floor((y-self.miny)/self.sipm_pitch)
+        indx_xi = <int> floor(inter_x)
+        indx_yi = <int> floor(inter_y)
         return self.nearby_list[indx_xi, indx_yi]
         
     cpdef double [:] get_z_bins(self):
@@ -93,17 +100,20 @@ cdef class PSF_distance(PSF):
     @cython.wraparound(False)
     @cython.cdivision(True)
     @cython.initializedcheck(False)
-    cdef double[:] get_values(self, double x, double y, int sipm_id) nogil:
+    cdef int get_values(self, const double x, const double y, const int sipm_id, double [:] psf_values) nogil:
         cdef:
-            double dist
-            int psf_bin
+            double dist, aux
+            unsigned int psf_bin
             double xsipm, ysipm, tmp_x, tmp_y
+            #double [:] psf_values_
         xsipm = self.xsipms[sipm_id]
         ysipm = self.ysipms[sipm_id]
         tmp_x = x-xsipm; tmp_y = y-ysipm
-        dist = sqrt(tmp_x*tmp_x + tmp_y*tmp_y)
-        if dist>self.max_psf:
-            return self.sipm_values[:]
-        psf_bin = <int> floor(dist/self.psf_bin)
-        return  self.psf_values[psf_bin,:]
-
+        dist = tmp_x*tmp_x + tmp_y*tmp_y
+        if dist>self.max_psf_sq:
+            return 0
+        aux = sqrt(dist)*self.inv_bin
+        psf_bin = <int> floor(aux)
+        #psf_values_ = self.psf_values[psf_bin,:]
+        psf_values[:] = self.psf_values[psf_bin, :]#psf_values_
+        return 1

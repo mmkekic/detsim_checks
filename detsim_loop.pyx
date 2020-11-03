@@ -9,7 +9,7 @@ from libc.math cimport sqrt, round, ceil, floor
 cimport cython
 
 #@profile
-#@cython.cdivision(True)
+@cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def electron_loop(double [:] xs,
@@ -26,7 +26,7 @@ def electron_loop(double [:] xs,
         int nsipms = PSF.sipm_ids.shape[0]
         double [:] zs = PSF.get_z_bins()
         double [:, :] sipmwfs = np.zeros([nsipms, num_bins], dtype=np.double)
-        
+        int important
         int indx_sipm
         int indx_el
         int indx_z
@@ -39,30 +39,29 @@ def electron_loop(double [:] xs,
     #lets create vector of EL_times
     num_zs = np.copy(zs)
     zs_bs = num_zs[1]-num_zs[0]
-    EL_times = (num_zs+zs_bs/2.)/EL_drift_velocity
+    EL_times = (num_zs+zs_bs/2.)/EL_drift_velocity/sipm_time_bin
     EL_times_ = EL_times.astype(np.double)
 
-    cdef double[:] psf_factors = np.empty_like(EL_times_)
+    cdef double[:] psf_factors = np.empty_like(EL_times_, dtype=np.double)
+    #cdef double[:] psf_factors = np.empty(len(EL_times_), dtype=np.double)
     cdef int[:] indxs_time = np.zeros_like(EL_times_, dtype=np.intc)
+    cdef int indxs_time_
     with nogil:
+
         for indx_el in range(ts.shape[0]):
             x_el = xs[indx_el]
             y_el = ys[indx_el]
             ph_el = phs[indx_el]
-            time_el = ts[indx_el]
-            sipm_ids[:] = PSF.get_list_of_sipms(x_el, y_el)
-            for indx_z in range(zs.shape[0]):
-                time = time_el+EL_times_[indx_z]
-                indxs_time[indx_z] = <int> floor(time/sipm_time_bin)
-            for indx_sipm in range(sipm_ids.shape[0]):
-                sipm_id = sipm_ids[indx_sipm]
-                if sipm_id>-1:
-                    psf_factors[:] = PSF.get_values(x_el, y_el, sipm_id)
+            time_el = ts[indx_el]/sipm_time_bin
+            for sipm_id in range(nsipms):
+                important = PSF.get_values(x_el, y_el, sipm_id, psf_factors)
+                if important>0:
                     for indx_z in range(zs.shape[0]):
+                        time = time_el+EL_times_[indx_z]
+                        indxs_time_ = <int> floor(time)
+                        
                         #if indx_time>=num_bins:
                         #    continue
                         signal = psf_factors[indx_z] * ph_el
-                        sipmwfs[sipm_id, indxs_time[indx_z]] += signal
-                else:
-                    break
+                        sipmwfs[sipm_id, indxs_time_] += signal
     return sipmwfs
