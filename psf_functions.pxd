@@ -1,4 +1,4 @@
-cdef class PSF:
-    cdef double* get_values(self, const double x, const double y, int sipm_id)
-    cpdef double[:] get_z_bins(self)
-    cpdef int[:] get_sipm_ids(self)
+cdef class LT:
+    cdef double* get_values_(self, const double x, const double y, int sensor_id) nogil
+    cdef double[:] get_zbins_(self)
+    cpdef int[:] get_sensor_ids(self)
