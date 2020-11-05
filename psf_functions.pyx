@@ -86,3 +86,72 @@ cdef class PSF_distance(PSF):
         pointer=self.get_values (x, y, sipm_id)
         numpy_array = np.asarray(<np.double_t[:self.z_bins.shape[0]]> pointer)
         return numpy_array
+
+import bisect
+from invisible_cities.cities.detsim_get_psf import binedges_from_bincenters
+
+
+cdef class LTS2(PSF):
+    #cdef double [:, ::1] psf_values
+    cdef:
+        double [:, :, :, ::1] tensor
+        double [:] xcenters, ycenters, xbins, ybins, z_bins
+        int [:] pmt_ids
+        double LT_bin,  max_zel, EL_z, r_max2, r_max
+        double inv_x, inv_y
+        int lenz
+        object lt 
+
+    def __init__(self, LT_fname, z_bins):
+        lt = pd.read_hdf(LT_fname, "LightTable")
+        config   = pd.read_hdf(LT_fname, "/Config")
+        sensor     = config.loc["sensor"]     .value
+        lt = lt.drop(columns = [sensor + "_total"])
+        
+        self.r_max = (config.loc['ACTIVE_rad'].astype(float).value)
+        self.r_max2 = self.r_max**2
+        self.z_bins = z_bins
+        self.lt = lt/len(self.z_bins)
+        self.lenz = len(self.z_bins)
+        self.pmt_ids = np.arange(lt.shape[1]).astype(np.intc)
+        xcenters = np.sort(np.unique(lt.index.get_level_values('x')))
+        ycenters = np.sort(np.unique(lt.index.get_level_values('y')))
+        indx = pd.MultiIndex.from_product([xcenters, ycenters], names=['x', 'y'])
+        tensor_aux = self.lt.reindex(indx, fill_value=0).values.reshape(len(xcenters), len(ycenters), lt.shape[1])[..., None]
+
+        self.tensor = np.asarray(np.repeat(tensor_aux, len(z_bins), axis=-1), dtype=np.double, order='C')
+        self.xcenters = xcenters
+        self.ycenters = ycenters
+        #self.xbins = binedges_from_bincenters(xcenters)
+        #self.ybins = binedges_from_bincenters(ycenters)
+        self.inv_x = 1./(xcenters[1]-xcenters[0])
+        self.inv_y = 1./(ycenters[1]-ycenters[0])
+        
+    cpdef double [:] get_z_bins(self):
+        return np.asarray(self.z_bins)
+
+    cpdef int [:] get_sipm_ids(self):
+        return np.asarray(self.pmt_ids)
+
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
+    cdef double* get_values(self, const double x, const double y, const int sipm_id) :
+        cdef:
+            double*  psf_values
+            int xindx_, yindx_
+            double xval, yval, value
+            double  [:] values
+        if (x*x+y*y)>=self.r_max2 :
+            return NULL
+        #xindx_ = sqrt(dist)*self.inv_bin
+        xindx_ = 10#<int> round((x+self.r_max)*self.inv_x)
+        yindx_ = 10#<int> round((y+self.r_max)*self.inv_y)
+        # xindx_ = bisect.bisect_left(self.xbins, x)
+        # yindx_ = bisect.bisect_left(self.ybins, y)
+        #print(xindx_, yindx_, sipm_id)
+        psf_values = &self.tensor[xindx_, yindx_, sipm_id, 0]
+        #print(psf_values[0])
+        return psf_values
